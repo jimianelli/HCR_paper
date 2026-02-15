@@ -84,7 +84,7 @@ knitr::kable(objectives)
 
 Performance metrics include mean catch, terminal biomass, and the probability that terminal SSB falls below 0.2 B0. We calibrate Ftarget to satisfy:
 
-\[ \frac{1}{2}\left[P(SSB_T < 0.2 B_0 \mid h=0.6) + P(SSB_T < 0.2 B_0 \mid h=0.9)\right] = 0.05 \]
+$$\frac{1}{2}\left[P(SSB_T < 0.2 B_0 \mid h=0.6) + P(SSB_T < 0.2 B_0 \mid h=0.9)\right] = 0.05$$
 
 The calibrated Ftarget is then used in the sloping HCR for both scenarios.
 
@@ -316,6 +316,10 @@ This analysis omits observation error, assessment feedback, and fleet behavior, 
 # Conclusions
 
 Risk calibration of a transparent SPR‑based HCR provides a simple method to manage productivity uncertainty. In this pollock‑like case, a single Ftarget achieves consistent biomass protection across steepness regimes while preserving yield in more productive states.
+
+# Data and code availability
+
+All code and inputs for the simulations and manuscript are available in the public repository: https://github.com/jimianelli/HCR_paper
 
 # References {.unnumbered}
 
