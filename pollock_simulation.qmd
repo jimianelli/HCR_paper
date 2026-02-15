@@ -1,0 +1,2005 @@
+---
+title: "Bering Sea Pollock-like Population Simulation test"
+subtitle: "Comparing Low and High Steepness Scenarios with constant HCR"
+author: "Jim Ianelli"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    code-summary: "Show code"
+    number-sections: true
+    lightbox: true
+    embed-resources: true
+    header-includes:
+      - |
+        <style>
+        .running-header {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          z-index: 1000;
+          background: #f2f2f2;
+          color: #222;
+          font-size: 0.85rem;
+          letter-spacing: 0.02em;
+          text-transform: uppercase;
+          text-align: center;
+          padding: 0.4rem 0.5rem;
+          border-bottom: 1px solid #d0d0d0;
+        }
+        body {
+          padding-top: 2.1rem;
+        }
+        @media print {
+          .running-header {
+            position: static;
+          }
+          body {
+            padding-top: 0;
+          }
+        }
+        </style>
+bibliography: ref.bib
+execute:
+  warning: false
+  message: false
+  cache: true
+---
+
+::: {=html}
+<div class="running-header">This document is a draft for discussion purposes only.</div>
+:::
+
+```{r setup}
+#| include: false
+#| cache: false
+SOURCED_ONLY <- TRUE
+source("R/pollock_simulation.R")
+library(ggplot2)
+library(ggthemes)
+knitr::opts_chunk$set(cache.extra = file.mtime("R/pollock_simulation.R"))
+```
+
+# Introduction
+Recruitment productivity under climate change is uncertain, and stock-recruitment steepness ($h$) is a key parameter that drives sustainable harvest levels. Evidence from climate-ecosystem modeling and recruitment studies suggests steepness and productivity can shift with warming and prey dynamics [@Hollowed_etal_2020; @Holsman_etal_2020; @Spencer_etal_2019; @Szuwalski_etal_2023]. Because steepness informs reference points and F proxies, mis-specification can change expected yields and risk profiles [@Szuwalski_Punt_2025; @Punt_etal_2024].
+
+At the same time, there is pressure to incorporate environmental covariates into harvest control rules (HCRs) to improve adaptability. These approaches can help track productivity changes, but they also add interpretive uncertainty and require strong validation [@Punt_etal_2024; @Szuwalski_etal_2023]. In contrast, tier-based HCRs remain transparent and easier to communicate, with clear links from biomass to fishing mortality [@NPFMC_FMP_2024]. This study asks whether a simple, transparent HCR can be robust to plausible productivity shifts without relying on covariates.
+
+We use a stylized pollock-like, age-structured model and compare two steepness scenarios (h=0.6 and h=0.9) [@NPFMC_FMP_2024]. The HCR is held constant (F40% SPR with a biomass ramp from 0.4$B_0$ to 0.05$B_0$), consistent with the Tier 3 framework used for Bering Sea groundfish [@NPFMC_FMP_2024; @Ianelli_etal_2011]. The goal is to evaluate whether a single rule performs reasonably across both low and high productivity regimes, and to quantify the tradeoffs if productivity assumptions are wrong [@Szuwalski_Punt_2025].
+
+This two-scenario comparison also frames a plausible climate-driven trajectory: productivity could shift over time from a high-steepness regime to a low-steepness regime (or vice versa) as environmental conditions change. Interpreting the scenarios as endpoints of a time-varying process clarifies the management problem: the HCR is calibrated under one regime but must remain acceptable if the system transitions to the other. The results therefore inform both static mis-specification risk and the dynamic case of a climate-driven regime shift.
+
+Key design choices include:
+- 15 age classes with Bering Sea-like growth and maturity schedules [@Ianelli_etal_2011]
+- Beverton-Holt recruitment with lognormal variability (CV 0.7) [@Spencer_etal_2019]
+- 50-year projections with 100 Monte Carlo replicates per scenario
+- No explicit environmental covariates; steepness shifts serve as a reduced-form proxy for climate-driven productivity changes [@Hollowed_etal_2020; @Holsman_etal_2020]
+
+Outputs include reference points, time series of biomass and catch, and sensitivity comparisons across steepness values. We move from model setup to reference points in @tbl-refpoints, then visualize recruitment and yield tradeoffs in @fig-sr-comparison and @fig-yield-comparison. Simulation outcomes are summarized in @fig-single-sim and @fig-monte-carlo, with sensitivity results in @fig-f-sensitivity, similar to HCR robustness evaluations in recent studies [@Punt_etal_2024].
+
+# Model Description
+
+This section documents the equations and inputs used to generate the reference points and simulations shown later.
+
+## Population Dynamics
+
+We define the annual accounting that drives the time series trajectories shown in @fig-single-sim.
+
+### Numbers at Age
+
+The population is tracked as numbers-at-age $N_{a,t}$ where $a$ denotes age and $t$ denotes year. The population evolves according to:
+
+**Recruitment (age 1):**
+$$N_{1,t} = R_t$$
+
+**Ages 2 through 14:**
+$$N_{a,t} = N_{a-1,t-1} \cdot e^{-Z_{a-1,t-1}}$$
+
+**Plus group (age 15):**
+$$N_{15,t} = N_{14,t-1} \cdot e^{-Z_{14,t-1}} + N_{15,t-1} \cdot e^{-Z_{15,t-1}}$$
+
+where $Z_{a,t} = M + F_t \cdot s_a$ is the total instantaneous mortality rate.
+
+These equations determine the age structure that feeds into biomass and catch trajectories in @fig-single-sim.
+
+## Biological Parameters
+
+Biological inputs control growth, maturity, and vulnerability, which in turn shape the yield curves in @fig-yield-comparison and the SSB trends in @fig-single-sim.
+
+### Weight-at-Age
+
+Weight-at-age is specified empirically based on the updated schedule:
+
+| Age | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15+ |
+|-----|---|---|---|---|---|---|---|---|---|----|----|----|----|----|----|
+| Weight (kg) | 0.029 | 0.180 | 0.372 | 0.491 | 0.613 | 0.749 | 0.883 | 1.014 | 1.133 | 1.243 | 1.348 | 1.388 | 1.469 | 1.553 | 1.791 |
+
+These weights translate numbers-at-age into biomass and catch, which are summarized in @fig-single-sim and @fig-yield-comparison.
+
+### Maturity and Selectivity
+
+Maturity is specified directly using fixed proportions at age, while fishery selectivity follows a logistic function:
+
+| Age | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15+ |
+|-----|---|---|---|---|---|---|---|---|---|----|----|----|----|----|----|
+| Proportion mature | 0.000 | 0.008 | 0.289 | 0.641 | 0.842 | 0.901 | 0.947 | 0.963 | 0.970 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 |
+
+$$s_a = \frac{1}{1 + e^{-\gamma_s(a - a_{50}^s)}} \quad \text{with } a_{50}^s = 4.0$$
+
+Maturity governs SSB while selectivity determines fishing impact, which together shape the trajectories in @fig-single-sim.
+
+### Spawning Stock Biomass
+
+SSB is defined as **female spawning biomass only**:
+
+$$SSB_t = \sum_{a=1}^{15} N_{a,t} \cdot W_a \cdot m_a \cdot 0.5$$
+
+This definition is used directly in the SSB time series shown in @fig-single-sim and the Monte Carlo envelope in @fig-monte-carlo.
+
+## Stock-Recruitment Relationship
+
+Recruitment dynamics are summarized visually in @fig-sr-comparison and influence the variability seen in @fig-monte-carlo.
+
+### Beverton-Holt Model with Steepness
+
+The expected recruitment follows the Beverton-Holt stock-recruitment relationship:
+
+$$R_t = \frac{4hR_0 \cdot SSB_{t-1}}{SSB_0(1-h) + SSB_{t-1}(5h-1)}$$
+
+Where **steepness** ($h$) represents the fraction of $R_0$ produced when SSB is at 20% of unfished levels. Higher steepness indicates a more resilient stock that maintains recruitment even at lower biomass levels.
+
+As shown in @fig-sr-comparison, this formulation differs across the two steepness scenarios.
+
+### Recruitment Variability
+
+Recruitment includes multiplicative log-normal process error with CV = 0.7:
+
+$$R_t = \bar{R}_t \cdot e^{\epsilon_t - \sigma_R^2/2}$$
+
+where $\epsilon_t \sim N(0, \sigma_R^2)$ and $\sigma_R = \sqrt{\ln(1 + 0.7^2)} \approx 0.614$.
+
+This stochasticity drives the spread in @fig-monte-carlo and contributes to the variability summarized in @tbl-mc-stats.
+
+# Scenario Setup
+
+We instantiate the two steepness scenarios used throughout the tables and figures.
+
+```{r create-scenarios}
+# Create two scenarios with different steepness values
+scenario_low <- create_scenario(h = 0.6, "Low,h=0.6")
+scenario_high <- create_scenario(h = 0.9, "High, h=0.9")
+scenarios <- list(scenario_low, scenario_high)
+```
+
+These objects feed the reference points in @tbl-refpoints and the graphical comparisons in @fig-sr-comparison and @fig-yield-comparison.
+
+All simulations initialize the population at the scenario's Fmsy equilibrium rather than the unfished B0 state.
+
+# Reference Point Comparison
+
+We summarize equilibrium reference points for each scenario to quantify differences in Fmsy, Bmsy, and MSY (see @tbl-refpoints).
+
+```{r ref-point-comparison}
+#| label: tbl-refpoints
+#| tbl-cap: "Reference point comparison between low and high steepness scenarios"
+
+comparison_df <- compare_reference_points(scenarios)
+knitr::kable(comparison_df, align = c("l", "c", "c", "c", "c", "c", "c", "c"))
+```
+
+@tbl-refpoints provides the numeric basis for the contrasts discussed below and for the vertical markers in @fig-yield-comparison.
+
+## Key Differences
+
+```{r calculate-differences}
+ref_low <- scenario_low$ref_points
+ref_high <- scenario_high$ref_points
+```
+
+We expand on the table summary by translating the reference point differences into percent changes.
+
+The contrast between scenarios reveals important management implications:
+
+| Metric | Low Steepness (h=0.6) | High Steepness (h=0.9) | Change |
+|--------|----------------------|------------------------|--------|
+| $F_{MSY}$ | `r round(ref_low$Fmsy, 3)` | `r round(ref_high$Fmsy, 3)` | `r round((ref_high$Fmsy/ref_low$Fmsy - 1) * 100, 0)`% higher |
+| $B_{MSY}$ (Mt) | `r round(ref_low$Bmsy/1e9, 2)` | `r round(ref_high$Bmsy/1e9, 2)` | `r round((ref_high$Bmsy/ref_low$Bmsy - 1) * 100, 0)`% lower |
+| MSY (Mt) | `r round(ref_low$MSY/1e9, 2)` | `r round(ref_high$MSY/1e9, 2)` | `r round((ref_high$MSY/ref_low$MSY - 1) * 100, 0)`% higher |
+| $B_{MSY}/SSB_0$ | `r round(ref_low$Bmsy_B0_ratio, 3)` | `r round(ref_high$Bmsy_B0_ratio, 3)` | `r round((ref_high$Bmsy_B0_ratio/ref_low$Bmsy_B0_ratio - 1) * 100, 0)`% lower |
+
+**Interpretation:**
+
+- **Higher steepness allows higher fishing mortality**: With $h = 0.9$, the stock can sustain $F_{MSY}$ = `r round(ref_high$Fmsy, 2)` compared to only `r round(ref_low$Fmsy, 2)` for $h = 0.6$.
+- **Higher steepness produces higher MSY**: The more productive stock yields `r round(ref_high$MSY/1e9, 2)` million tonnes vs. `r round(ref_low$MSY/1e9, 2)` million tonnes.
+- **Higher steepness requires lower $B_{MSY}$**: The stock can be fished down further while still achieving MSY.
+
+# Graphical Comparisons
+
+These figures visualize how the two steepness settings diverge in recruitment, yield, and harvest control (see @fig-sr-comparison, @fig-yield-comparison, and @fig-hcr).
+
+## Stock-Recruitment Curves
+
+As shown in @fig-sr-comparison, the stock-recruitment curves differ and highlight the different Bmsy locations.
+
+```{r sr-comparison}
+#| label: fig-sr-comparison
+#| fig-cap: "Stock-recruitment relationships for low (h=0.6) and high (h=0.9) steepness scenarios. Vertical dashed lines indicate Bmsy for each scenario and the gray dashed line is the replacement line (R0/SSB0)."
+#| fig-height: 5
+#| fig-width: 8
+
+plot_sr_comparison(scenarios, colors = c("blue", "red"))
+```
+
+The stock-recruitment curves illustrate how steepness affects the relationship between spawning biomass and recruitment:
+
+- **Low steepness (blue)**: Recruitment declines more steeply as SSB decreases, making the stock more vulnerable to overfishing.
+- **High steepness (red)**: Recruitment remains relatively high even at reduced SSB, indicating greater resilience.
+
+## Yield Curves
+
+As shown in @fig-yield-comparison, equilibrium yield responds differently to fishing mortality across scenarios.
+
+```{r yield-comparison}
+#| label: fig-yield-comparison
+#| fig-cap: "Equilibrium yield vs. fishing mortality for both steepness scenarios. Vertical dashed lines indicate Fmsy for each scenario."
+#| fig-height: 5
+#| fig-width: 8
+
+plot_yield_comparison(scenarios, colors = c("blue", "red"))
+```
+
+The yield curves show:
+
+- **Low steepness (blue)**: Yield peaks at a lower $F$ and declines more rapidly with overfishing.
+- **High steepness (red)**: Yield peaks at a much higher $F$ and the curve is flatter, providing more buffer against recruitment overfishing.
+
+## Harvest Control Rule (F40% with biomass ramp)
+
+We add a sloping harvest control rule based on $F_{40\%}$ (SPR) and unfished biomass $B_0$. The target F values are reported in @tbl-f40 and the rule shape is shown in @fig-hcr.
+
+$$
+F_t =
+\begin{cases}
+F_{40\%} & \text{if } SSB_t \ge 0.4 B_0 \\
+F_{40\%} \cdot \dfrac{SSB_t - 0.05 B_0}{0.4 B_0 - 0.05 B_0} & \text{if } 0.05 B_0 < SSB_t < 0.4 B_0 \\
+0 & \text{if } SSB_t \le 0.05 B_0
+\end{cases}
+$$
+
+```{r hcr-f40-table}
+#| label: tbl-f40
+#| tbl-cap: "F40% (SPR) values by steepness scenario."
+
+F40_low <- calc_F_spr(scenario_low$params, spr_target = 0.4)
+F40_high <- calc_F_spr(scenario_high$params, spr_target = 0.4)
+
+f40_table <- data.frame(
+  Scenario = c("Low steepness (h=0.6)", "High steepness (h=0.9)"),
+  `F40%` = round(c(F40_low, F40_high), 3),
+  check.names = FALSE
+)
+
+knitr::kable(f40_table)
+```
+
+```{r hcr-plot}
+#| label: fig-hcr
+#| fig-cap: "Sloping control rule: F40% above 0.4 B0, ramp to zero at 0.05 B0."
+#| fig-height: 5
+#| fig-width: 8
+
+ssb_ratio <- seq(0, 1, by = 0.01)
+
+F_hcr_low <- calc_sloping_hcr(ssb_ratio * ref_low$SSB0, ref_low$SSB0, F40_low)
+F_hcr_high <- calc_sloping_hcr(ssb_ratio * ref_high$SSB0, ref_high$SSB0, F40_high)
+
+y_max <- max(c(F_hcr_low, F_hcr_high)) * 1.1
+
+hcr_df <- data.frame(
+  SSB_ratio = rep(ssb_ratio, 2),
+  F = c(F_hcr_low, F_hcr_high),
+  Scenario = rep(c("h=0.6 (F40%)", "h=0.9 (F40%)"), each = length(ssb_ratio))
+)
+
+hcr_colors <- c("h=0.6 (F40%)" = "blue", "h=0.9 (F40%)" = "red")
+
+p_hcr <- ggplot(hcr_df, aes(x = SSB_ratio, y = F, color = Scenario)) +
+  geom_line(size = 1) +
+  geom_vline(xintercept = c(0.05, 0.4), linetype = "dotted", color = "gray50") +
+  coord_cartesian(ylim = c(0, y_max)) +
+  labs(x = "SSB / B0", y = "Fishing Mortality (F)", title = "Harvest Control Rule") +
+  scale_color_manual(values = hcr_colors) +
+  ggthemes::theme_few()
+
+p_hcr
+```
+
+# Risk-Calibrated Ftarget
+
+We calibrate a single $F_{target}$ (applied in the sloping HCR) so that the **combined** terminal risk across the low and high steepness scenarios satisfies $P(SSB < 0.2 B_0) = 0.05$. The combined risk is the average of the two scenario-specific probabilities.
+
+```{r ftarget-calibration}
+#| label: tbl-ftarget
+#| tbl-cap: "Risk-calibrated Ftarget targeting P(SSB < 0.2 B0) = 0.05 across low and high steepness scenarios."
+
+target_risk <- 0.05
+b0_frac <- 0.2
+n_sims_risk <- 200
+seed_low <- 2200
+seed_high <- 3200
+
+calc_terminal_b0_risk <- function(scenario, F_target, B0, n_sims, seed_base, b0_frac) {
+  params <- scenario$params
+  n_years <- params$n_years
+  below <- logical(n_sims)
+
+  for (i in 1:n_sims) {
+    sim <- run_simulation_hcr(
+      params,
+      F_target = F_target,
+      B0 = B0,
+      catch_cap = NULL,
+      seed = seed_base + i
+    )
+    below[i] <- sim$SSB[n_years] < (b0_frac * B0)
+  }
+
+  mean(below)
+}
+
+combined_b0_risk <- function(F_target) {
+  risk_low <- calc_terminal_b0_risk(
+    scenario_low,
+    F_target,
+    ref_low$SSB0,
+    n_sims_risk,
+    seed_low,
+    b0_frac
+  )
+  risk_high <- calc_terminal_b0_risk(
+    scenario_high,
+    F_target,
+    ref_high$SSB0,
+    n_sims_risk,
+    seed_high,
+    b0_frac
+  )
+
+  list(
+    risk_low = risk_low,
+    risk_high = risk_high,
+    risk_combined = mean(c(risk_low, risk_high))
+  )
+}
+
+F_grid <- seq(0.05, 1.0, by = 0.05)
+risk_grid <- lapply(F_grid, combined_b0_risk)
+risk_df <- data.frame(
+  F_target = F_grid,
+  Risk_combined = sapply(risk_grid, function(x) x$risk_combined),
+  Risk_low = sapply(risk_grid, function(x) x$risk_low),
+  Risk_high = sapply(risk_grid, function(x) x$risk_high)
+)
+
+risk_min <- min(risk_df$Risk_combined)
+risk_max <- max(risk_df$Risk_combined)
+
+if (target_risk <= risk_min) {
+  Ftarget <- risk_df$F_target[which.min(risk_df$Risk_combined)]
+} else if (target_risk >= risk_max) {
+  Ftarget <- risk_df$F_target[which.max(risk_df$Risk_combined)]
+} else {
+  ordered <- risk_df[order(risk_df$Risk_combined), ]
+  Ftarget <- approx(ordered$Risk_combined, ordered$F_target, xout = target_risk)$y
+}
+
+risk_at_target <- combined_b0_risk(Ftarget)
+
+ftarget_table <- data.frame(
+  Metric = c(
+    "Ftarget",
+    "Combined P(SSB < 0.2 B0)",
+    "Low steepness P(SSB < 0.2 B0)",
+    "High steepness P(SSB < 0.2 B0)"
+  ),
+  Value = c(
+    round(Ftarget, 3),
+    round(risk_at_target$risk_combined, 3),
+    round(risk_at_target$risk_low, 3),
+    round(risk_at_target$risk_high, 3)
+  )
+)
+
+knitr::kable(ftarget_table)
+```
+
+# Simulation Results
+
+We first compare single realizations at Fmsy (@fig-single-sim), then summarize means (@tbl-sim-summary) and variability across Monte Carlo runs (@fig-monte-carlo and @tbl-mc-stats).
+
+## Single Simulation Comparison
+
+As shown in @fig-single-sim, we plot a single 50-year trajectory for each scenario at its Fmsy.
+
+```{r single-sim}
+#| label: fig-single-sim
+#| fig-cap: "50-year simulations for both scenarios at their respective Fmsy values (single Monte Carlo draw)."
+#| fig-height: 10
+#| fig-width: 10
+
+# Run simulations
+sim_low <- run_simulation(scenario_low$params, F_series = ref_low$Fmsy, seed = 42)
+sim_high <- run_simulation(scenario_high$params, F_series = ref_high$Fmsy, seed = 42)
+
+years <- 1:50
+
+make_long <- function(sim, scenario_label) {
+  data.frame(
+    Year = rep(years, 4),
+    Scenario = scenario_label,
+    Metric = rep(c("SSB (Mt)", "Recruitment (B)", "Catch (Mt)", "F"), each = length(years)),
+    Value = c(sim$SSB / 1e9, sim$Recruitment / 1e9, sim$Catch / 1e9, sim$F)
+  )
+}
+
+sim_long <- rbind(
+  make_long(sim_low, "h=0.6"),
+  make_long(sim_high, "h=0.9")
+)
+
+sim_long$Metric <- factor(
+  sim_long$Metric,
+  levels = c("SSB (Mt)", "Recruitment (B)", "Catch (Mt)", "F")
+)
+
+ref_lines <- data.frame(
+  Metric = c("SSB (Mt)", "SSB (Mt)", "Catch (Mt)", "Catch (Mt)"),
+  Scenario = c("h=0.6", "h=0.9", "h=0.6", "h=0.9"),
+  Value = c(ref_low$Bmsy / 1e9, ref_high$Bmsy / 1e9, ref_low$MSY / 1e9, ref_high$MSY / 1e9)
+)
+
+scenario_colors <- c("h=0.6" = "blue", "h=0.9" = "red")
+
+p_single <- ggplot(sim_long, aes(x = Year, y = Value, color = Scenario)) +
+  geom_line(size = 1) +
+  geom_hline(
+    data = ref_lines,
+    aes(yintercept = Value, color = Scenario),
+    linetype = "dashed",
+    size = 0.8,
+    inherit.aes = FALSE,
+    show.legend = FALSE
+  ) +
+  facet_wrap(~ Metric, scales = "free_y", ncol = 2) +
+  scale_color_manual(values = scenario_colors) +
+  labs(x = "Year", y = NULL, title = "50-year simulations at Fmsy") +
+  ggthemes::theme_few()
+
+p_single
+```
+
+## Simulation Summary Statistics
+
+@tbl-sim-summary aggregates the single-simulation outcomes into mean and CV metrics.
+
+```{r sim-summary}
+#| label: tbl-sim-summary
+#| tbl-cap: "Summary statistics from 50-year simulations at respective Fmsy values"
+
+summary_df <- data.frame(
+  Scenario = c("Low, h=0.6", "High, h=0.9"),
+  `Mean SSB (Mt)` = c(round(mean(sim_low$SSB)/1e9, 2), round(mean(sim_high$SSB)/1e9, 2)),
+  `CV SSB` = c(round(sd(sim_low$SSB)/mean(sim_low$SSB), 3),
+               round(sd(sim_high$SSB)/mean(sim_high$SSB), 3)),
+  `Mean Catch (Mt)` = c(round(mean(sim_low$Catch)/1e9, 2), round(mean(sim_high$Catch)/1e9, 2)),
+  `Mean Rec (B)` = c(round(mean(sim_low$Recruitment)/1e9, 2),
+                     round(mean(sim_high$Recruitment)/1e9, 2)),
+  check.names = FALSE
+)
+
+knitr::kable(summary_df)
+```
+
+## Monte Carlo Simulations
+
+As shown in @fig-monte-carlo, stochastic variability across 100 runs is summarized with metrics reported in @tbl-mc-stats. We then compare catch trajectories across three strategies: constant $F$ at $F_{MSY}$, the $F_{40\%}$ SPR HCR, and the risk-calibrated HCR based on $F_{target}$. The terminal-year SSB distributions for these strategies are shown in @fig-terminal-ssb-density, with terminal-year catch distributions in @fig-terminal-catch-density.
+
+```{r monte-carlo}
+#| label: fig-monte-carlo
+#| fig-cap: "Ensemble of 100 simulations for each scenario showing SSB variability. Thin lines are individual simulations, thick solid lines are medians, and dashed lines indicate Bmsy."
+#| fig-height: 5
+#| fig-width: 10
+
+# Run Monte Carlo simulations
+n_sims <- 100
+n_years <- 50
+
+ssb_low <- matrix(NA, n_years, n_sims)
+ssb_high <- matrix(NA, n_years, n_sims)
+catch_low <- matrix(NA, n_years, n_sims)
+catch_high <- matrix(NA, n_years, n_sims)
+
+for (i in 1:n_sims) {
+  sim_l <- run_simulation(scenario_low$params, F_series = ref_low$Fmsy, seed = i)
+  sim_h <- run_simulation(scenario_high$params, F_series = ref_high$Fmsy, seed = i)
+  ssb_low[, i] <- sim_l$SSB
+  ssb_high[, i] <- sim_h$SSB
+  catch_low[, i] <- sim_l$Catch
+  catch_high[, i] <- sim_h$Catch
+}
+
+ssb_low_df <- data.frame(
+  Year = rep(1:n_years, times = n_sims),
+  Sim = rep(1:n_sims, each = n_years),
+  SSB = as.vector(ssb_low) / 1e9,
+  Scenario = "h=0.6"
+)
+
+ssb_high_df <- data.frame(
+  Year = rep(1:n_years, times = n_sims),
+  Sim = rep(1:n_sims, each = n_years),
+  SSB = as.vector(ssb_high) / 1e9,
+  Scenario = "h=0.9"
+)
+
+ssb_df <- rbind(ssb_low_df, ssb_high_df)
+
+median_df <- rbind(
+  data.frame(Year = 1:n_years, SSB = apply(ssb_low, 1, median) / 1e9, Scenario = "h=0.6"),
+  data.frame(Year = 1:n_years, SSB = apply(ssb_high, 1, median) / 1e9, Scenario = "h=0.9")
+)
+
+bmsy_df <- data.frame(
+  Scenario = c("h=0.6", "h=0.9"),
+  Bmsy = c(ref_low$Bmsy, ref_high$Bmsy) / 1e9
+)
+
+scenario_colors <- c("h=0.6" = "blue", "h=0.9" = "red")
+
+p_mc <- ggplot(ssb_df, aes(x = Year, y = SSB, group = interaction(Scenario, Sim), color = Scenario)) +
+  geom_line(alpha = 0.1, size = 0.4, show.legend = FALSE) +
+  geom_line(
+    data = median_df,
+    aes(x = Year, y = SSB, color = Scenario),
+    size = 1.1,
+    inherit.aes = FALSE
+  ) +
+  geom_hline(
+    data = bmsy_df,
+    aes(yintercept = Bmsy, color = Scenario),
+    linetype = "dashed",
+    size = 0.8,
+    inherit.aes = FALSE
+  ) +
+  facet_wrap(~ Scenario, ncol = 2, scales = "free_y") +
+  scale_color_manual(values = scenario_colors) +
+  labs(x = "Year", y = "Female SSB (Mt)", title = "Monte Carlo SSB trajectories") +
+  ggthemes::theme_few() +
+  guides(color = "none")
+
+p_mc
+```
+
+```{r catch-monte-carlo}
+#| label: fig-catch-monte-carlo
+#| fig-cap: "Ensemble of 100 simulations for each scenario showing catch variability under constant F, the FSPR HCR, and the risk-calibrated HCR. Thin lines are individual simulations and thick solid lines are medians."
+#| fig-height: 5
+#| fig-width: 10
+
+catch_low_hcr <- matrix(NA, n_years, n_sims)
+catch_high_hcr <- matrix(NA, n_years, n_sims)
+catch_low_ftarget <- matrix(NA, n_years, n_sims)
+catch_high_ftarget <- matrix(NA, n_years, n_sims)
+
+for (i in 1:n_sims) {
+  sim_l_hcr <- run_simulation_hcr(
+    scenario_low$params,
+    F_target = F40_low,
+    B0 = ref_low$SSB0,
+    catch_cap = NULL,
+    seed = i
+  )
+  sim_h_hcr <- run_simulation_hcr(
+    scenario_high$params,
+    F_target = F40_high,
+    B0 = ref_high$SSB0,
+    catch_cap = NULL,
+    seed = i
+  )
+  sim_l_ftarget <- run_simulation_hcr(
+    scenario_low$params,
+    F_target = Ftarget,
+    B0 = ref_low$SSB0,
+    catch_cap = NULL,
+    seed = i
+  )
+  sim_h_ftarget <- run_simulation_hcr(
+    scenario_high$params,
+    F_target = Ftarget,
+    B0 = ref_high$SSB0,
+    catch_cap = NULL,
+    seed = i
+  )
+  catch_low_hcr[, i] <- sim_l_hcr$Catch
+  catch_high_hcr[, i] <- sim_h_hcr$Catch
+  catch_low_ftarget[, i] <- sim_l_ftarget$Catch
+  catch_high_ftarget[, i] <- sim_h_ftarget$Catch
+}
+
+catch_low_df <- data.frame(
+  Year = rep(1:n_years, times = n_sims),
+  Sim = rep(1:n_sims, each = n_years),
+  Catch = as.vector(catch_low) / 1e9,
+  Scenario = "h=0.6",
+  Policy = "Const. F"
+)
+
+catch_high_df <- data.frame(
+  Year = rep(1:n_years, times = n_sims),
+  Sim = rep(1:n_sims, each = n_years),
+  Catch = as.vector(catch_high) / 1e9,
+  Scenario = "h=0.9",
+  Policy = "Const. F"
+)
+
+catch_low_hcr_df <- data.frame(
+  Year = rep(1:n_years, times = n_sims),
+  Sim = rep(1:n_sims, each = n_years),
+  Catch = as.vector(catch_low_hcr) / 1e9,
+  Scenario = "h=0.6",
+  Policy = "FSPR HCR"
+)
+
+catch_high_hcr_df <- data.frame(
+  Year = rep(1:n_years, times = n_sims),
+  Sim = rep(1:n_sims, each = n_years),
+  Catch = as.vector(catch_high_hcr) / 1e9,
+  Scenario = "h=0.9",
+  Policy = "FSPR HCR"
+)
+
+catch_low_ftarget_df <- data.frame(
+  Year = rep(1:n_years, times = n_sims),
+  Sim = rep(1:n_sims, each = n_years),
+  Catch = as.vector(catch_low_ftarget) / 1e9,
+  Scenario = "h=0.6",
+  Policy = "Risk-calibrated HCR"
+)
+
+catch_high_ftarget_df <- data.frame(
+  Year = rep(1:n_years, times = n_sims),
+  Sim = rep(1:n_sims, each = n_years),
+  Catch = as.vector(catch_high_ftarget) / 1e9,
+  Scenario = "h=0.9",
+  Policy = "Risk-calibrated HCR"
+)
+
+catch_df <- rbind(
+  catch_low_df,
+  catch_high_df,
+  catch_low_hcr_df,
+  catch_high_hcr_df,
+  catch_low_ftarget_df,
+  catch_high_ftarget_df
+)
+
+median_catch_df <- rbind(
+  data.frame(
+    Year = 1:n_years,
+    Catch = apply(catch_low, 1, median) / 1e9,
+    Scenario = "h=0.6",
+    Policy = "Const. F"
+  ),
+  data.frame(
+    Year = 1:n_years,
+    Catch = apply(catch_high, 1, median) / 1e9,
+    Scenario = "h=0.9",
+    Policy = "Const. F"
+  ),
+  data.frame(
+    Year = 1:n_years,
+    Catch = apply(catch_low_hcr, 1, median) / 1e9,
+    Scenario = "h=0.6",
+    Policy = "FSPR HCR"
+  ),
+  data.frame(
+    Year = 1:n_years,
+    Catch = apply(catch_high_hcr, 1, median) / 1e9,
+    Scenario = "h=0.9",
+    Policy = "FSPR HCR"
+  ),
+  data.frame(
+    Year = 1:n_years,
+    Catch = apply(catch_low_ftarget, 1, median) / 1e9,
+    Scenario = "h=0.6",
+    Policy = "Risk-calibrated HCR"
+  ),
+  data.frame(
+    Year = 1:n_years,
+    Catch = apply(catch_high_ftarget, 1, median) / 1e9,
+    Scenario = "h=0.9",
+    Policy = "Risk-calibrated HCR"
+  )
+)
+
+policy_colors <- c(
+  "Const. F" = "#1F77B4",
+  "FSPR HCR" = "#D95F02",
+  "Risk-calibrated HCR" = "#2CA02C"
+)
+
+p_catch <- ggplot(
+  catch_df,
+  aes(x = Year, y = Catch, group = interaction(Scenario, Policy, Sim), color = Policy)
+) +
+  geom_line(alpha = 0.08, size = 0.4, show.legend = FALSE) +
+  geom_line(
+    data = median_catch_df,
+    aes(x = Year, y = Catch, color = Policy),
+    size = 1.1,
+    inherit.aes = FALSE
+  ) +
+  facet_wrap(~ Scenario, ncol = 2) +
+  scale_color_manual(values = policy_colors) +
+  labs(x = "Year", y = "Catch (Mt)", title = "Monte Carlo catch trajectories") +
+  ggthemes::theme_few()
+
+p_catch
+```
+
+Across strategies in @fig-catch-monte-carlo, constant $F$ applies a fixed fishing rate, while the HCR strategies vary $F$ with biomass. This sets up a clear tradeoff: HCRs reduce fishing pressure in low-SSB periods, which can buffer against low-biomass risk, but they also lower catches in those years. Differences between the low- and high-steepness panels reflect the assumed productivity regime.
+
+```{r terminal-ssb-density}
+#| label: fig-terminal-ssb-density
+#| fig-cap: "Terminal-year SSB distributions by fishing strategy (constant F at Fmsy, FSPR HCR, risk-calibrated HCR, and catch-capped HCR)."
+#| fig-height: 5
+#| fig-width: 10
+
+terminal_const_low <- ssb_low[n_years, ] / 1e9
+terminal_const_high <- ssb_high[n_years, ] / 1e9
+
+catch_cap <- 1.45e9
+
+terminal_hcr_low <- numeric(n_sims)
+terminal_hcr_high <- numeric(n_sims)
+terminal_ftarget_low <- numeric(n_sims)
+terminal_ftarget_high <- numeric(n_sims)
+terminal_cap_low <- numeric(n_sims)
+terminal_cap_high <- numeric(n_sims)
+
+for (i in 1:n_sims) {
+  sim_l_hcr <- run_simulation_hcr(
+    scenario_low$params,
+    F_target = F40_low,
+    B0 = ref_low$SSB0,
+    catch_cap = NULL,
+    seed = i
+  )
+  sim_h_hcr <- run_simulation_hcr(
+    scenario_high$params,
+    F_target = F40_high,
+    B0 = ref_high$SSB0,
+    catch_cap = NULL,
+    seed = i
+  )
+  sim_l_ftarget <- run_simulation_hcr(
+    scenario_low$params,
+    F_target = Ftarget,
+    B0 = ref_low$SSB0,
+    catch_cap = NULL,
+    seed = i
+  )
+  sim_h_ftarget <- run_simulation_hcr(
+    scenario_high$params,
+    F_target = Ftarget,
+    B0 = ref_high$SSB0,
+    catch_cap = NULL,
+    seed = i
+  )
+  sim_l_cap <- run_simulation_hcr(
+    scenario_low$params,
+    F_target = F40_low,
+    B0 = ref_low$SSB0,
+    catch_cap = catch_cap,
+    seed = i
+  )
+  sim_h_cap <- run_simulation_hcr(
+    scenario_high$params,
+    F_target = F40_high,
+    B0 = ref_high$SSB0,
+    catch_cap = catch_cap,
+    seed = i
+  )
+
+  terminal_hcr_low[i] <- sim_l_hcr$SSB[n_years] / 1e9
+  terminal_hcr_high[i] <- sim_h_hcr$SSB[n_years] / 1e9
+  terminal_ftarget_low[i] <- sim_l_ftarget$SSB[n_years] / 1e9
+  terminal_ftarget_high[i] <- sim_h_ftarget$SSB[n_years] / 1e9
+  terminal_cap_low[i] <- sim_l_cap$SSB[n_years] / 1e9
+  terminal_cap_high[i] <- sim_h_cap$SSB[n_years] / 1e9
+}
+
+terminal_df <- rbind(
+  data.frame(Terminal_SSB = terminal_const_low, Scenario = "h=0.6", Policy = "Const. F"),
+  data.frame(Terminal_SSB = terminal_hcr_low, Scenario = "h=0.6", Policy = "FSPR HCR"),
+  data.frame(Terminal_SSB = terminal_ftarget_low, Scenario = "h=0.6", Policy = "Risk-calibrated HCR"),
+  data.frame(Terminal_SSB = terminal_cap_low, Scenario = "h=0.6", Policy = "FSPR HCR cap"),
+  data.frame(Terminal_SSB = terminal_const_high, Scenario = "h=0.9", Policy = "Const. F"),
+  data.frame(Terminal_SSB = terminal_hcr_high, Scenario = "h=0.9", Policy = "FSPR HCR"),
+  data.frame(Terminal_SSB = terminal_ftarget_high, Scenario = "h=0.9", Policy = "Risk-calibrated HCR"),
+  data.frame(Terminal_SSB = terminal_cap_high, Scenario = "h=0.9", Policy = "FSPR HCR cap")
+)
+
+terminal_df$Policy <- factor(
+  terminal_df$Policy,
+  levels = c("Const. F", "FSPR HCR", "Risk-calibrated HCR", "FSPR HCR cap")
+)
+
+policy_colors <- c(
+  "Const. F" = "#1F77B4",
+  "FSPR HCR" = "#D95F02",
+  "Risk-calibrated HCR" = "#2CA02C",
+  "FSPR HCR cap" = "#9467BD"
+)
+
+p_terminal <- ggplot(terminal_df, aes(x = Terminal_SSB, color = Policy, fill = Policy)) +
+  geom_density(alpha = 0.25, size = 1) +
+  facet_wrap(~ Scenario, ncol = 2) +
+  scale_color_manual(values = policy_colors) +
+  scale_fill_manual(values = policy_colors) +
+  labs(x = "Terminal SSB (Mt)", y = "Density", title = "Terminal-year SSB distributions") +
+  ggthemes::theme_few()
+
+p_terminal
+```
+
+@fig-terminal-ssb-density summarizes terminal-year risk across strategies. A right-shifted density indicates higher terminal SSB, while a heavier left tail indicates greater risk of ending at low biomass. The risk-calibrated HCR is explicitly tuned to limit the combined probability of $SSB < 0.2 B_0$, and the catch-capped HCR further constrains fishing in high-catch years. The relative tail behavior across the four strategies highlights the precautionary differences under each steepness scenario.
+
+```{r terminal-catch-density}
+#| label: fig-terminal-catch-density
+#| fig-cap: "Terminal-year catch distributions by fishing strategy (constant F at Fmsy, FSPR HCR, risk-calibrated HCR, and catch-capped HCR)."
+#| fig-height: 5
+#| fig-width: 10
+
+terminal_catch_const_low <- catch_low[n_years, ] / 1e9
+terminal_catch_const_high <- catch_high[n_years, ] / 1e9
+
+catch_cap <- 1.45e9
+
+terminal_catch_hcr_low <- numeric(n_sims)
+terminal_catch_hcr_high <- numeric(n_sims)
+terminal_catch_ftarget_low <- numeric(n_sims)
+terminal_catch_ftarget_high <- numeric(n_sims)
+terminal_catch_cap_low <- numeric(n_sims)
+terminal_catch_cap_high <- numeric(n_sims)
+
+for (i in 1:n_sims) {
+  sim_l_hcr <- run_simulation_hcr(
+    scenario_low$params,
+    F_target = F40_low,
+    B0 = ref_low$SSB0,
+    catch_cap = NULL,
+    seed = i
+  )
+  sim_h_hcr <- run_simulation_hcr(
+    scenario_high$params,
+    F_target = F40_high,
+    B0 = ref_high$SSB0,
+    catch_cap = NULL,
+    seed = i
+  )
+  sim_l_ftarget <- run_simulation_hcr(
+    scenario_low$params,
+    F_target = Ftarget,
+    B0 = ref_low$SSB0,
+    catch_cap = NULL,
+    seed = i
+  )
+  sim_h_ftarget <- run_simulation_hcr(
+    scenario_high$params,
+    F_target = Ftarget,
+    B0 = ref_high$SSB0,
+    catch_cap = NULL,
+    seed = i
+  )
+  sim_l_cap <- run_simulation_hcr(
+    scenario_low$params,
+    F_target = F40_low,
+    B0 = ref_low$SSB0,
+    catch_cap = catch_cap,
+    seed = i
+  )
+  sim_h_cap <- run_simulation_hcr(
+    scenario_high$params,
+    F_target = F40_high,
+    B0 = ref_high$SSB0,
+    catch_cap = catch_cap,
+    seed = i
+  )
+
+  terminal_catch_hcr_low[i] <- sim_l_hcr$Catch[n_years] / 1e9
+  terminal_catch_hcr_high[i] <- sim_h_hcr$Catch[n_years] / 1e9
+  terminal_catch_ftarget_low[i] <- sim_l_ftarget$Catch[n_years] / 1e9
+  terminal_catch_ftarget_high[i] <- sim_h_ftarget$Catch[n_years] / 1e9
+  terminal_catch_cap_low[i] <- sim_l_cap$Catch[n_years] / 1e9
+  terminal_catch_cap_high[i] <- sim_h_cap$Catch[n_years] / 1e9
+}
+
+terminal_catch_df <- rbind(
+  data.frame(Terminal_Catch = terminal_catch_const_low, Scenario = "h=0.6", Policy = "Const. F"),
+  data.frame(Terminal_Catch = terminal_catch_hcr_low, Scenario = "h=0.6", Policy = "FSPR HCR"),
+  data.frame(Terminal_Catch = terminal_catch_ftarget_low, Scenario = "h=0.6", Policy = "Risk-calibrated HCR"),
+  data.frame(Terminal_Catch = terminal_catch_cap_low, Scenario = "h=0.6", Policy = "FSPR HCR cap"),
+  data.frame(Terminal_Catch = terminal_catch_const_high, Scenario = "h=0.9", Policy = "Const. F"),
+  data.frame(Terminal_Catch = terminal_catch_hcr_high, Scenario = "h=0.9", Policy = "FSPR HCR"),
+  data.frame(Terminal_Catch = terminal_catch_ftarget_high, Scenario = "h=0.9", Policy = "Risk-calibrated HCR"),
+  data.frame(Terminal_Catch = terminal_catch_cap_high, Scenario = "h=0.9", Policy = "FSPR HCR cap")
+)
+
+terminal_catch_df$Policy <- factor(
+  terminal_catch_df$Policy,
+  levels = c("Const. F", "FSPR HCR", "Risk-calibrated HCR", "FSPR HCR cap")
+)
+
+policy_colors <- c(
+  "Const. F" = "#1F77B4",
+  "FSPR HCR" = "#D95F02",
+  "Risk-calibrated HCR" = "#2CA02C",
+  "FSPR HCR cap" = "#9467BD"
+)
+
+p_terminal_catch <- ggplot(
+  terminal_catch_df,
+  aes(x = Terminal_Catch, color = Policy, fill = Policy)
+) +
+  geom_density(alpha = 0.25, size = 1) +
+  #facet_grid(Scenario~., scales="free_y" ) +
+  facet_grid(Scenario~. ) +
+  scale_color_manual(values = policy_colors) +
+  scale_fill_manual(values = policy_colors) +
+  coord_cartesian(xlim = c(0, 2.9),ylim=c(0,1.2)) +
+  labs(x = "Terminal year catch (Mt)", y = "Density", title = "Terminal-year catch distributions") +
+  ggthemes::theme_few()
+
+p_terminal_catch
+```
+
+@fig-terminal-catch-density shows how end-of-period catches differ across strategies. The catch-capped HCR truncates the upper tail by design, while the SPR-based and risk-calibrated HCRs shift mass toward lower catches when biomass is low. As with the SSB distributions, the high-steepness scenario supports higher terminal catches on average, with the spread reflecting recruitment variability and the rules that modulate fishing pressure.
+
+```{r mc-stats}
+#| label: tbl-mc-stats
+#| tbl-cap: "Monte Carlo simulation statistics (100 runs per scenario)"
+
+mc_stats <- data.frame(
+  Scenario = c("Low, h=0.6", "High, h=0.9"),
+  `Mean terminal SSB (Mt)` = c(round(mean(ssb_low[n_years,])/1e9, 2),
+                                round(mean(ssb_high[n_years,])/1e9, 2)),
+  `P(SSB < Bmsy) terminal` = c(round(mean(ssb_low[n_years,] < ref_low$Bmsy), 2),
+                                round(mean(ssb_high[n_years,] < ref_high$Bmsy), 2)),
+  `Mean catch (Mt)` = c(round(mean(catch_low)/1e9, 2),
+                        round(mean(catch_high)/1e9, 2)),
+  `CV mean catch` = c(round(sd(colMeans(catch_low))/mean(catch_low), 3),
+                      round(sd(colMeans(catch_high))/mean(catch_high), 3)),
+  check.names = FALSE
+)
+
+knitr::kable(mc_stats)
+```
+
+# Fishing Mortality Sensitivity
+
+To stress-test harvest rates, we run each scenario at constant fishing mortality values spanning 0.5-1.5 x $F_{MSY}$. @tbl-f-sensitivity lists the constant-F results alongside the FSPR HCR, risk-calibrated HCR, and the 1.45 Mt catch cap, and @fig-f-sensitivity visualizes the tradeoffs.
+
+```{r f-sensitivity-table}
+#| label: tbl-f-sensitivity
+#| tbl-cap: "Performance across constant F multipliers and HCR policies (FSPR, risk-calibrated, and catch-capped; 100 simulations per level)."
+
+F_multipliers <- c(0.5, 0.75, 1.0, 1.25, 1.5)
+n_sims_F <- 100
+
+f_low <- run_F_sensitivity(scenario_low, F_multipliers, n_sims = n_sims_F, seed = 200)
+f_high <- run_F_sensitivity(scenario_high, F_multipliers, n_sims = n_sims_F, seed = 500)
+
+f_summary <- rbind(f_low, f_high)
+f_summary$Policy <- "Const. F"
+
+run_hcr_summary_table <- function(scenario, F_target, B0, n_sims, seed_base, catch_cap, policy_label) {
+  params <- scenario$params
+  ref_points <- scenario$ref_points
+  n_years <- params$n_years
+
+  ssb_mean <- numeric(n_sims)
+  ssb_terminal <- numeric(n_sims)
+  catch_mean <- numeric(n_sims)
+  f_mean <- numeric(n_sims)
+  ssb_lt_bmsy <- logical(n_sims)
+
+  for (i in 1:n_sims) {
+    sim <- run_simulation_hcr(
+      params,
+      F_target = F_target,
+      B0 = B0,
+      catch_cap = catch_cap,
+      seed = seed_base + i
+    )
+    ssb_mean[i] <- mean(sim$SSB)
+    ssb_terminal[i] <- sim$SSB[n_years]
+    catch_mean[i] <- mean(sim$Catch)
+    f_mean[i] <- mean(sim$F)
+    ssb_lt_bmsy[i] <- sim$SSB[n_years] < ref_points$Bmsy
+  }
+
+  data.frame(
+    Scenario = scenario$name,
+    Steepness = params$h,
+    Policy = policy_label,
+    F_multiplier = mean(f_mean) / ref_points$Fmsy,
+    F_applied = mean(f_mean),
+    Mean_SSB = mean(ssb_mean),
+    Terminal_SSB = mean(ssb_terminal),
+    P_SSB_lt_Bmsy = mean(ssb_lt_bmsy),
+    Mean_Catch = mean(catch_mean)
+  )
+}
+
+catch_cap <- 1.45e9
+seed_base_low <- 800
+seed_base_high <- 900
+
+hcr_low <- run_hcr_summary_table(
+  scenario_low,
+  F40_low,
+  ref_low$SSB0,
+  n_sims_F,
+  seed_base = seed_base_low,
+  catch_cap = NULL,
+  policy_label = "FSPR HCR"
+)
+hcr_high <- run_hcr_summary_table(
+  scenario_high,
+  F40_high,
+  ref_high$SSB0,
+  n_sims_F,
+  seed_base = seed_base_high,
+  catch_cap = NULL,
+  policy_label = "FSPR HCR"
+)
+hcr_low_ftarget <- run_hcr_summary_table(
+  scenario_low,
+  Ftarget,
+  ref_low$SSB0,
+  n_sims_F,
+  seed_base = seed_base_low,
+  catch_cap = NULL,
+  policy_label = "Risk-calibrated HCR"
+)
+hcr_high_ftarget <- run_hcr_summary_table(
+  scenario_high,
+  Ftarget,
+  ref_high$SSB0,
+  n_sims_F,
+  seed_base = seed_base_high,
+  catch_cap = NULL,
+  policy_label = "Risk-calibrated HCR"
+)
+hcr_low_cap <- run_hcr_summary_table(
+  scenario_low,
+  F40_low,
+  ref_low$SSB0,
+  n_sims_F,
+  seed_base = seed_base_low,
+  catch_cap = catch_cap,
+  policy_label = "FSPR HCR cap"
+)
+hcr_high_cap <- run_hcr_summary_table(
+  scenario_high,
+  F40_high,
+  ref_high$SSB0,
+  n_sims_F,
+  seed_base = seed_base_high,
+  catch_cap = catch_cap,
+  policy_label = "FSPR HCR cap"
+)
+
+hcr_summary <- rbind(hcr_low, hcr_high, hcr_low_ftarget, hcr_high_ftarget, hcr_low_cap, hcr_high_cap)
+f_summary_all <- rbind(f_summary, hcr_summary)
+
+f_table <- data.frame(
+  Scenario = f_summary_all$Scenario,
+  Policy = f_summary_all$Policy,
+  `F multiplier` = signif(f_summary_all$F_multiplier, 2),
+  `F applied` = round(f_summary_all$F_applied, 3),
+  `Mean SSB (Mt)` = round(f_summary_all$Mean_SSB / 1e9, 2),
+  `Terminal SSB (Mt)` = round(f_summary_all$Terminal_SSB / 1e9, 2),
+  `P(SSB < Bmsy) terminal` = round(f_summary_all$P_SSB_lt_Bmsy, 2),
+  `Mean Catch (Mt)` = round(f_summary_all$Mean_Catch / 1e9, 2),
+  check.names = FALSE
+)
+
+knitr::kable(f_table)
+```
+
+```{r f-sensitivity-plot}
+#| label: fig-f-sensitivity
+#| fig-cap: "Tradeoffs across F multipliers: mean catch and terminal SSB. Triangle points show the FSPR HCR outcome, diamonds show the risk-calibrated HCR, and square points show the catch-capped HCR at the mean realized F/Fmsy."
+#| fig-height: 5
+#| fig-width: 9
+
+plot_data <- f_summary
+plot_data$Policy <- "Const. F"
+plot_data$Scenario_plot <- ifelse(
+  plot_data$Scenario == scenario_low$name,
+  "h=0.6",
+  "h=0.9"
+)
+
+catch_cap <- 1.45e9
+seed_base_low <- 800
+seed_base_high <- 900
+
+run_hcr_summary <- function(scenario, F_target, B0, n_sims, seed_base, catch_cap, policy_label) {
+  params <- scenario$params
+  ref_points <- scenario$ref_points
+  n_years <- params$n_years
+
+  ssb_mean <- numeric(n_sims)
+  ssb_terminal <- numeric(n_sims)
+  catch_mean <- numeric(n_sims)
+  f_mean <- numeric(n_sims)
+
+  for (i in 1:n_sims) {
+    sim <- run_simulation_hcr(
+      params,
+      F_target = F_target,
+      B0 = B0,
+      catch_cap = catch_cap,
+      seed = seed_base + i
+    )
+    ssb_mean[i] <- mean(sim$SSB)
+    ssb_terminal[i] <- sim$SSB[n_years]
+    catch_mean[i] <- mean(sim$Catch)
+    f_mean[i] <- mean(sim$F)
+  }
+
+  data.frame(
+    Scenario = scenario$name,
+    F_multiplier = mean(f_mean) / ref_points$Fmsy,
+    Mean_SSB = mean(ssb_mean),
+    Terminal_SSB = mean(ssb_terminal),
+    Mean_Catch = mean(catch_mean),
+    Policy = policy_label
+  )
+}
+
+hcr_low <- run_hcr_summary(
+  scenario_low,
+  F40_low,
+  ref_low$SSB0,
+  n_sims_F,
+  seed_base = seed_base_low,
+  catch_cap = NULL,
+  policy_label = "FSPR HCR"
+)
+hcr_high <- run_hcr_summary(
+  scenario_high,
+  F40_high,
+  ref_high$SSB0,
+  n_sims_F,
+  seed_base = seed_base_high,
+  catch_cap = NULL,
+  policy_label = "FSPR HCR"
+)
+hcr_low_ftarget <- run_hcr_summary(
+  scenario_low,
+  Ftarget,
+  ref_low$SSB0,
+  n_sims_F,
+  seed_base = seed_base_low,
+  catch_cap = NULL,
+  policy_label = "Risk-calibrated HCR"
+)
+hcr_high_ftarget <- run_hcr_summary(
+  scenario_high,
+  Ftarget,
+  ref_high$SSB0,
+  n_sims_F,
+  seed_base = seed_base_high,
+  catch_cap = NULL,
+  policy_label = "Risk-calibrated HCR"
+)
+hcr_low_cap <- run_hcr_summary(
+  scenario_low,
+  F40_low,
+  ref_low$SSB0,
+  n_sims_F,
+  seed_base = seed_base_low,
+  catch_cap = catch_cap,
+  policy_label = "FSPR HCR cap"
+)
+hcr_high_cap <- run_hcr_summary(
+  scenario_high,
+  F40_high,
+  ref_high$SSB0,
+  n_sims_F,
+  seed_base = seed_base_high,
+  catch_cap = catch_cap,
+  policy_label = "FSPR HCR cap"
+)
+hcr_summary <- rbind(hcr_low, hcr_high, hcr_low_ftarget, hcr_high_ftarget, hcr_low_cap, hcr_high_cap)
+hcr_summary$Scenario_plot <- ifelse(
+  hcr_summary$Scenario == scenario_low$name,
+  "h=0.6",
+  "h=0.9"
+)
+
+plot_long <- rbind(
+  data.frame(
+    F_multiplier = plot_data$F_multiplier,
+    Scenario = plot_data$Scenario_plot,
+    Metric = "Mean Catch (Mt)",
+    Value = plot_data$Mean_Catch / 1e9,
+    Policy = plot_data$Policy
+  ),
+  data.frame(
+    F_multiplier = plot_data$F_multiplier,
+    Scenario = plot_data$Scenario_plot,
+    Metric = "Terminal SSB (Mt)",
+    Value = plot_data$Terminal_SSB / 1e9,
+    Policy = plot_data$Policy
+  ),
+  data.frame(
+    F_multiplier = hcr_summary$F_multiplier,
+    Scenario = hcr_summary$Scenario_plot,
+    Metric = "Mean Catch (Mt)",
+    Value = hcr_summary$Mean_Catch / 1e9,
+    Policy = hcr_summary$Policy
+  ),
+  data.frame(
+    F_multiplier = hcr_summary$F_multiplier,
+    Scenario = hcr_summary$Scenario_plot,
+    Metric = "Terminal SSB (Mt)",
+    Value = hcr_summary$Terminal_SSB / 1e9,
+    Policy = hcr_summary$Policy
+  )
+)
+
+plot_long$Metric <- factor(plot_long$Metric, levels = c("Mean Catch (Mt)", "Terminal SSB (Mt)"))
+
+bmsy_df <- data.frame(
+  Scenario = c("h=0.6", "h=0.9"),
+  Metric = "Terminal SSB (Mt)",
+  Value = c(ref_low$Bmsy, ref_high$Bmsy) / 1e9
+)
+
+scenario_colors <- c("h=0.6" = "blue", "h=0.9" = "red")
+
+p_f <- ggplot() +
+  geom_line(
+    data = plot_long[plot_long$Policy == "Const. F", ],
+    aes(x = F_multiplier, y = Value, color = Scenario),
+    size = 1
+  ) +
+  geom_point(
+    data = plot_long[plot_long$Policy == "Const. F", ],
+    aes(x = F_multiplier, y = Value, color = Scenario),
+    size = 2
+  ) +
+  geom_point(
+    data = plot_long[plot_long$Policy != "Const. F", ],
+    aes(x = F_multiplier, y = Value, color = Scenario, shape = Policy),
+    size = 3,
+    stroke = 0.8
+  ) +
+  geom_hline(
+    data = bmsy_df,
+    aes(yintercept = Value, color = Scenario),
+    linetype = "dashed",
+    size = 0.8,
+    inherit.aes = FALSE,
+    show.legend = FALSE
+  ) +
+  facet_wrap(~ Metric, scales = "free_y", ncol = 2) +
+  scale_color_manual(values = scenario_colors) +
+  scale_shape_manual(values = c("FSPR HCR" = 17, "Risk-calibrated HCR" = 18, "FSPR HCR cap" = 15)) +
+  labs(x = "F multiplier (relative to Fmsy)", y = NULL, title = "F sensitivity tradeoffs") +
+  ggthemes::theme_few()
+
+p_f
+```
+
+```{r f-sensitivity-points}
+#| label: fig-f-sensitivity-points
+#| fig-cap: "Individual simulation outcomes at F multiplier = 1.0 and under the FSPR HCR, risk-calibrated HCR, and the 1.45 Mt catch cap. Points are single Monte Carlo draws with x = mean catch and y = terminal SSB/Bmsy."
+#| fig-height: 5
+#| fig-width: 9
+
+n_sims_points <- n_sims_F
+catch_cap <- 1.45e9
+seed_base_low <- 1200
+seed_base_high <- 1300
+
+sim_constant_points <- function(scenario, f_multiplier, seed_base, n_sims) {
+  params <- scenario$params
+  ref_points <- scenario$ref_points
+  n_years <- params$n_years
+
+  mean_catch <- numeric(n_sims)
+  terminal_ssb <- numeric(n_sims)
+
+  for (i in 1:n_sims) {
+    sim <- run_simulation(params, F_series = ref_points$Fmsy * f_multiplier, seed = seed_base + i)
+    mean_catch[i] <- mean(sim$Catch)
+    terminal_ssb[i] <- sim$SSB[n_years]
+  }
+
+  data.frame(
+    Scenario = scenario$name,
+    F_multiplier = rep(f_multiplier, n_sims),
+    Mean_Catch = mean_catch,
+    Terminal_SSB = terminal_ssb,
+    Policy = "Const. F"
+  )
+}
+
+sim_hcr_points <- function(scenario, F_target, B0, seed_base, n_sims, catch_cap, policy_label) {
+  params <- scenario$params
+  ref_points <- scenario$ref_points
+  n_years <- params$n_years
+
+  mean_catch <- numeric(n_sims)
+  terminal_ssb <- numeric(n_sims)
+  mean_f <- numeric(n_sims)
+
+  for (i in 1:n_sims) {
+    sim <- run_simulation_hcr(
+      params,
+      F_target = F_target,
+      B0 = B0,
+      catch_cap = catch_cap,
+      seed = seed_base + i
+    )
+    mean_catch[i] <- mean(sim$Catch)
+    terminal_ssb[i] <- sim$SSB[n_years]
+    mean_f[i] <- mean(sim$F)
+  }
+
+  data.frame(
+    Scenario = scenario$name,
+    F_multiplier = mean_f / ref_points$Fmsy,
+    Mean_Catch = mean_catch,
+    Terminal_SSB = terminal_ssb,
+    Policy = policy_label
+  )
+}
+
+const_low_pts <- sim_constant_points(scenario_low, 1.0, seed_base = seed_base_low, n_sims_points)
+const_high_pts <- sim_constant_points(scenario_high, 1.0, seed_base = seed_base_high, n_sims_points)
+hcr_low_pts <- sim_hcr_points(
+  scenario_low,
+  F40_low,
+  ref_low$SSB0,
+  seed_base = seed_base_low,
+  n_sims_points,
+  catch_cap = NULL,
+  policy_label = "FSPR HCR"
+)
+hcr_high_pts <- sim_hcr_points(
+  scenario_high,
+  F40_high,
+  ref_high$SSB0,
+  seed_base = seed_base_high,
+  n_sims_points,
+  catch_cap = NULL,
+  policy_label = "FSPR HCR"
+)
+hcr_low_ftarget_pts <- sim_hcr_points(
+  scenario_low,
+  Ftarget,
+  ref_low$SSB0,
+  seed_base = seed_base_low,
+  n_sims_points,
+  catch_cap = NULL,
+  policy_label = "Risk-calibrated HCR"
+)
+hcr_high_ftarget_pts <- sim_hcr_points(
+  scenario_high,
+  Ftarget,
+  ref_high$SSB0,
+  seed_base = seed_base_high,
+  n_sims_points,
+  catch_cap = NULL,
+  policy_label = "Risk-calibrated HCR"
+)
+hcr_low_cap_pts <- sim_hcr_points(
+  scenario_low,
+  F40_low,
+  ref_low$SSB0,
+  seed_base = seed_base_low,
+  n_sims_points,
+  catch_cap = catch_cap,
+  policy_label = "FSPR HCR cap"
+)
+hcr_high_cap_pts <- sim_hcr_points(
+  scenario_high,
+  F40_high,
+  ref_high$SSB0,
+  seed_base = seed_base_high,
+  n_sims_points,
+  catch_cap = catch_cap,
+  policy_label = "FSPR HCR cap"
+)
+
+points_df <- rbind(
+  const_low_pts,
+  const_high_pts,
+  hcr_low_pts,
+  hcr_high_pts,
+  hcr_low_ftarget_pts,
+  hcr_high_ftarget_pts,
+  hcr_low_cap_pts,
+  hcr_high_cap_pts
+)
+points_df$Scenario_plot <- ifelse(
+  points_df$Scenario == scenario_low$name,
+  "h=0.6",
+  "h=0.9"
+)
+
+bmsy_lookup <- ifelse(
+  points_df$Scenario_plot == "h=0.6",
+  ref_low$Bmsy,
+  ref_high$Bmsy
+)
+
+plot_points <- data.frame(
+  Catch_Mt = points_df$Mean_Catch / 1e9,
+  Terminal_SSB_Bmsy = points_df$Terminal_SSB / bmsy_lookup,
+  Scenario = points_df$Scenario_plot,
+  Policy = points_df$Policy,
+  PolicyGroup = ifelse(points_df$Policy == "Const. F", "Const. F", "HCR")
+)
+
+scenario_colors <- c("h=0.6" = "blue", "h=0.9" = "red")
+
+p_fp <- ggplot(plot_points, aes(x = Catch_Mt, y = Terminal_SSB_Bmsy, color = Scenario, shape = Policy)) +
+  geom_point(alpha = 0.6, size = 2) +
+  geom_smooth(
+    data = plot_points,
+    aes(x = Catch_Mt, y = Terminal_SSB_Bmsy, linetype = PolicyGroup, group = PolicyGroup),
+    method = "loess",
+    se = FALSE,
+    size = 0.8,
+    color = "black",
+    inherit.aes = FALSE
+  ) +
+  expand_limits(y = 0) +
+  scale_color_manual(values = scenario_colors) +
+  scale_linetype_manual(values = c("Const. F" = "solid", "HCR" = "dashed")) +
+  scale_shape_manual(values = c("Const. F" = 16, "FSPR HCR" = 17, "Risk-calibrated HCR" = 18, "FSPR HCR cap" = 15)) +
+  labs(x = "Mean Catch (Mt)", y = "Terminal SSB / Bmsy", title = "F sensitivity: individual simulation draws") +
+  ggthemes::theme_few()
+
+p_fp
+```
+
+Kobe plots summarize the joint distribution of exploitation and biomass across all years, with quadrants defined by $F/F_{MSY}$ and $SSB/B_{MSY}$. In @fig-kobe-plots, color indicates the fishing strategy and point shape indicates the steepness scenario.
+
+```{r kobe-plots}
+#| label: fig-kobe-plots
+#| fig-cap: "Kobe plot using all annual SSB/Bmsy and F/Fmsy values. Colors show fishing strategy and point shapes show steepness scenario."
+#| fig-height: 5
+#| fig-width: 10
+
+n_years_kobe <- scenario_low$params$n_years
+n_sims_kobe <- n_sims_F
+catch_cap <- 1.45e9
+seed_base_low <- 1200
+seed_base_high <- 1300
+
+make_kobe_const <- function(scenario, seed_base, policy_label) {
+  params <- scenario$params
+  ref_points <- scenario$ref_points
+  out <- vector("list", n_sims_kobe)
+
+  for (i in 1:n_sims_kobe) {
+    sim <- run_simulation(params, F_series = ref_points$Fmsy, seed = seed_base + i)
+    out[[i]] <- data.frame(
+      Scenario = scenario$name,
+      Policy = policy_label,
+      Year = 1:n_years_kobe,
+      SSB_Bmsy = sim$SSB / ref_points$Bmsy,
+      F_Fmsy = sim$F / ref_points$Fmsy,
+      Sim = i
+    )
+  }
+
+  do.call(rbind, out)
+}
+
+make_kobe_hcr <- function(scenario, F_target, B0, catch_cap, seed_base, policy_label) {
+  params <- scenario$params
+  ref_points <- scenario$ref_points
+  out <- vector("list", n_sims_kobe)
+
+  for (i in 1:n_sims_kobe) {
+    sim <- run_simulation_hcr(
+      params,
+      F_target = F_target,
+      B0 = B0,
+      catch_cap = catch_cap,
+      seed = seed_base + i
+    )
+    out[[i]] <- data.frame(
+      Scenario = scenario$name,
+      Policy = policy_label,
+      Year = 1:n_years_kobe,
+      SSB_Bmsy = sim$SSB / ref_points$Bmsy,
+      F_Fmsy = sim$F / ref_points$Fmsy,
+      Sim = i
+    )
+  }
+
+  do.call(rbind, out)
+}
+
+kobe_df <- rbind(
+  make_kobe_const(scenario_low, seed_base_low, "Const. F"),
+  make_kobe_const(scenario_high, seed_base_high, "Const. F"),
+  make_kobe_hcr(scenario_low, F40_low, ref_low$SSB0, NULL, seed_base_low, "FSPR HCR"),
+  make_kobe_hcr(scenario_high, F40_high, ref_high$SSB0, NULL, seed_base_high, "FSPR HCR"),
+  make_kobe_hcr(scenario_low, Ftarget, ref_low$SSB0, NULL, seed_base_low, "Risk-calibrated HCR"),
+  make_kobe_hcr(scenario_high, Ftarget, ref_high$SSB0, NULL, seed_base_high, "Risk-calibrated HCR"),
+  make_kobe_hcr(scenario_low, F40_low, ref_low$SSB0, catch_cap, seed_base_low, "FSPR HCR cap"),
+  make_kobe_hcr(scenario_high, F40_high, ref_high$SSB0, catch_cap, seed_base_high, "FSPR HCR cap")
+)
+
+kobe_df$Scenario_plot <- ifelse(
+  kobe_df$Scenario == scenario_low$name,
+  "h=0.6",
+  "h=0.9"
+)
+
+policy_colors <- c(
+  "Const. F" = "#1F77B4",
+  "FSPR HCR" = "#D95F02",
+  "Risk-calibrated HCR" = "#2CA02C",
+  "FSPR HCR cap" = "#9467BD"
+)
+
+p_kobe <- ggplot(kobe_df, aes(x = SSB_Bmsy, y = F_Fmsy, color = Policy, shape = Scenario_plot)) +
+  geom_point(alpha = 0.15, size = 0.8) +
+  geom_vline(xintercept = 1, linetype = "dashed", color = "gray40") +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "gray40") +
+  scale_color_manual(values = policy_colors) +
+  scale_shape_manual(values = c("h=0.6" = 16, "h=0.9" = 17)) +
+  coord_cartesian(xlim=c(0,4)) +
+  labs(x = "SSB / Bmsy", y = "F / Fmsy", title = "Kobe plots by strategy") +
+  ggthemes::theme_few()
+
+p_kobe
+```
+
+```{r catch-variability}
+#| label: fig-catch-variability
+#| fig-cap: "Average annual catch variability (CV) over the last 10 years versus mean catch over the last 10 years across constant F, FSPR HCR, risk-calibrated HCR, and catch-capped HCR strategies."
+#| fig-height: 5
+#| fig-width: 9
+
+catch_cap <- 1.45e9
+seed_base_low <- 1600
+seed_base_high <- 1700
+
+last10_stats_constant <- function(scenario, f_multiplier, seed_base, n_sims) {
+  params <- scenario$params
+  ref_points <- scenario$ref_points
+  n_years <- params$n_years
+  last_years <- (n_years - 9):n_years
+
+  mean_catch <- numeric(n_sims)
+  cv_catch <- numeric(n_sims)
+
+  for (i in 1:n_sims) {
+    sim <- run_simulation(params, F_series = ref_points$Fmsy * f_multiplier, seed = seed_base + i)
+    catch_last <- sim$Catch[last_years]
+    mean_catch[i] <- mean(catch_last)
+    cv_catch[i] <- sd(catch_last) / mean(catch_last)
+  }
+
+  data.frame(
+    Scenario = scenario$name,
+    Mean_Catch = mean_catch,
+    Catch_CV = cv_catch,
+    Policy = "Const. F"
+  )
+}
+
+last10_stats_hcr <- function(scenario, F_target, B0, seed_base, n_sims, catch_cap, policy_label) {
+  params <- scenario$params
+  n_years <- params$n_years
+  last_years <- (n_years - 9):n_years
+
+  mean_catch <- numeric(n_sims)
+  cv_catch <- numeric(n_sims)
+
+  for (i in 1:n_sims) {
+    sim <- run_simulation_hcr(
+      params,
+      F_target = F_target,
+      B0 = B0,
+      catch_cap = catch_cap,
+      seed = seed_base + i
+    )
+    catch_last <- sim$Catch[last_years]
+    mean_catch[i] <- mean(catch_last)
+    cv_catch[i] <- sd(catch_last) / mean(catch_last)
+  }
+
+  data.frame(
+    Scenario = scenario$name,
+    Mean_Catch = mean_catch,
+    Catch_CV = cv_catch,
+    Policy = policy_label
+  )
+}
+
+const_low_var <- last10_stats_constant(scenario_low, 1.0, seed_base = seed_base_low, n_sims_points)
+const_high_var <- last10_stats_constant(scenario_high, 1.0, seed_base = seed_base_high, n_sims_points)
+hcr_low_var <- last10_stats_hcr(
+  scenario_low,
+  F40_low,
+  ref_low$SSB0,
+  seed_base = seed_base_low,
+  n_sims_points,
+  catch_cap = NULL,
+  policy_label = "FSPR HCR"
+)
+hcr_high_var <- last10_stats_hcr(
+  scenario_high,
+  F40_high,
+  ref_high$SSB0,
+  seed_base = seed_base_high,
+  n_sims_points,
+  catch_cap = NULL,
+  policy_label = "FSPR HCR"
+)
+hcr_low_ftarget_var <- last10_stats_hcr(
+  scenario_low,
+  Ftarget,
+  ref_low$SSB0,
+  seed_base = seed_base_low,
+  n_sims_points,
+  catch_cap = NULL,
+  policy_label = "Risk-calibrated HCR"
+)
+hcr_high_ftarget_var <- last10_stats_hcr(
+  scenario_high,
+  Ftarget,
+  ref_high$SSB0,
+  seed_base = seed_base_high,
+  n_sims_points,
+  catch_cap = NULL,
+  policy_label = "Risk-calibrated HCR"
+)
+hcr_low_cap_var <- last10_stats_hcr(
+  scenario_low,
+  F40_low,
+  ref_low$SSB0,
+  seed_base = seed_base_low,
+  n_sims_points,
+  catch_cap = catch_cap,
+  policy_label = "FSPR HCR cap"
+)
+hcr_high_cap_var <- last10_stats_hcr(
+  scenario_high,
+  F40_high,
+  ref_high$SSB0,
+  seed_base = seed_base_high,
+  n_sims_points,
+  catch_cap = catch_cap,
+  policy_label = "FSPR HCR cap"
+)
+
+var_df <- rbind(
+  const_low_var,
+  const_high_var,
+  hcr_low_var,
+  hcr_high_var,
+  hcr_low_ftarget_var,
+  hcr_high_ftarget_var,
+  hcr_low_cap_var,
+  hcr_high_cap_var
+)
+var_df$Scenario_plot <- ifelse(
+  var_df$Scenario == scenario_low$name,
+  "h=0.6",
+  "h=0.9"
+)
+
+var_df$Mean_Catch_Mt <- var_df$Mean_Catch / 1e9
+
+scenario_colors <- c("h=0.6" = "blue", "h=0.9" = "red")
+
+var_summary <- aggregate(
+  cbind(Mean_Catch_Mt, Catch_CV) ~ Scenario_plot + Policy,
+  data = var_df,
+  FUN = mean
+)
+
+p_var <- ggplot(var_summary, aes(x = Mean_Catch_Mt, y = Catch_CV, color = Scenario_plot, shape = Policy)) +
+  geom_point(size = 5) +
+  expand_limits(y = 0) +
+  scale_color_manual(values = scenario_colors) +
+  scale_shape_manual(values = c("Const. F" = 16, "FSPR HCR" = 17, "Risk-calibrated HCR" = 18, "FSPR HCR cap" = 15)) +
+  labs(x = "Mean Catch (Mt, last 10 years)", y = "Catch CV (last 10 years)", title = "Catch variability vs mean catch") +
+  ggthemes::theme_few()
+
+p_var
+```
+
+# Alternating Steepness Simulation
+
+## Base-recruitment variability
+
+To represent a climate-driven regime shift, we run a separate simulation where steepness alternates between high and low values every 10 years. The capped SPR HCR (F40% with a 1.45 Mt catch cap) is applied throughout, and we summarize productivity using log(recruitment/SSB) for each simulation run.
+
+```{r alternating-steepness}
+#| label: fig-alt-log-rps
+#| fig-cap: "Log(recruitment/SSB) time series across 100 simulations with steepness alternating every 10 years. Recruitment in year t is based on SSB in year t-1."
+#| fig-height: 5
+#| fig-width: 10
+
+n_years_alt <- scenario_low$params$n_years
+block_years <- 10
+block_id <- rep(seq_len(ceiling(n_years_alt / block_years)), each = block_years)[1:n_years_alt]
+h_series <- ifelse(block_id %% 2 == 1, scenario_high$params$h, scenario_low$params$h)
+
+n_sims_alt <- 100
+catch_cap_alt <- 1.45e9
+F_target_alt <- calc_F_spr(scenario_low$params, spr_target = 0.4)
+B0_alt <- calc_SSB0(scenario_low$params)
+
+log_rps_list <- vector("list", n_sims_alt)
+
+for (i in 1:n_sims_alt) {
+  sim_alt <- run_simulation_hcr_variable_h(
+    scenario_low$params,
+    h_series = h_series,
+    F_target = F_target_alt,
+    B0 = B0_alt,
+    catch_cap = catch_cap_alt,
+    seed = 4000 + i
+  )
+
+  rps <- sim_alt$Recruitment[-1] / pmax(sim_alt$SSB[-length(sim_alt$SSB)], 1e-12)
+  log_rps_list[[i]] <- data.frame(
+    Year = 2:n_years_alt,
+    Sim = i,
+    Log_R_SSB = log(rps)
+  )
+}
+
+log_rps_df <- do.call(rbind, log_rps_list)
+
+median_log_rps <- aggregate(Log_R_SSB ~ Year, data = log_rps_df, FUN = median)
+
+p_alt <- ggplot(log_rps_df, aes(x = Year, y = Log_R_SSB, group = Sim)) +
+  geom_line(alpha = 0.2, size = 0.4, color = "steelblue") +
+  geom_line(
+    data = median_log_rps,
+    aes(x = Year, y = Log_R_SSB),
+    inherit.aes = FALSE,
+    color = "black",
+    size = 1.1
+  ) +
+  labs(x = "Year", y = "log(Recruitment / SSB)", title = "Alternating steepness (10-year blocks)") +
+  ggthemes::theme_few()
+
+p_alt
+```
+
+## Alternating Steepness with Low Recruitment Variability
+
+We repeat the alternating-steepness experiment with low recruitment variability ($\sigma_R = 0.1$) to show how reduced process error changes the log(recruitment/SSB) dynamics under the capped HCR.
+
+```{r alternating-steepness-low-sigma}
+#| label: fig-alt-log-rps-low-sigma
+#| fig-cap: "Log(recruitment/SSB) time series across 100 simulations with steepness alternating every 10 years and low recruitment variability (sigma_R = 0.1). Recruitment in year t is based on SSB in year t-1."
+#| fig-height: 5
+#| fig-width: 10
+
+n_years_alt_low <- scenario_low$params$n_years
+block_years_low <- 10
+block_id_low <- rep(seq_len(ceiling(n_years_alt_low / block_years_low)), each = block_years_low)[1:n_years_alt_low]
+h_series_low <- ifelse(block_id_low %% 2 == 1, scenario_high$params$h, scenario_low$params$h)
+
+params_low_sigma <- scenario_low$params
+params_low_sigma$rec_sigma <- 0.1
+params_low_sigma$rec_cv <- sqrt(exp(params_low_sigma$rec_sigma^2) - 1)
+
+n_sims_alt_low <- 100
+catch_cap_alt_low <- 1.45e9
+F_target_alt_low <- calc_F_spr(params_low_sigma, spr_target = 0.4)
+B0_alt_low <- calc_SSB0(params_low_sigma)
+
+log_rps_list_low <- vector("list", n_sims_alt_low)
+
+for (i in 1:n_sims_alt_low) {
+  sim_alt_low <- run_simulation_hcr_variable_h(
+    params_low_sigma,
+    h_series = h_series_low,
+    F_target = F_target_alt_low,
+    B0 = B0_alt_low,
+    catch_cap = catch_cap_alt_low,
+    seed = 5000 + i
+  )
+
+  rps_low <- sim_alt_low$Recruitment[-1] / pmax(sim_alt_low$SSB[-length(sim_alt_low$SSB)], 1e-12)
+  log_rps_list_low[[i]] <- data.frame(
+    Year = 2:n_years_alt_low,
+    Sim = i,
+    Log_R_SSB = log(rps_low)
+  )
+}
+
+log_rps_low_df <- do.call(rbind, log_rps_list_low)
+
+median_log_rps_low <- aggregate(Log_R_SSB ~ Year, data = log_rps_low_df, FUN = median)
+
+p_alt_low <- ggplot(log_rps_low_df, aes(x = Year, y = Log_R_SSB, group = Sim)) +
+  geom_line(alpha = 0.2, size = 0.4, color = "steelblue") +
+  geom_line(
+    data = median_log_rps_low,
+    aes(x = Year, y = Log_R_SSB),
+    inherit.aes = FALSE,
+    color = "black",
+    size = 1.1
+  ) +
+  labs(
+    x = "Year",
+    y = "log(Recruitment / SSB)",
+    title = "Alternating steepness (10-year blocks), sigma_R = 0.1"
+  ) +
+  ggthemes::theme_few()
+
+p_alt_low
+```
+
+### Alternating Steepness with Regime-Specific Fmsy
+
+As a contrast to the capped HCR, we apply the "correct" $F_{MSY}$ for each steepness block (high or low) while keeping $\sigma_R = 0.1$.
+
+```{r alternating-steepness-low-sigma-fmsy}
+#| label: fig-alt-log-rps-low-sigma-fmsy
+#| fig-cap: "Log(recruitment/SSB) time series with steepness alternating every 10 years and regime-specific Fmsy (sigma_R = 0.1). Recruitment in year t is based on SSB in year t-1."
+#| fig-height: 5
+#| fig-width: 10
+
+params_low_sigma_low <- params_low_sigma
+params_low_sigma_low$h <- scenario_low$params$h
+params_low_sigma_high <- params_low_sigma
+params_low_sigma_high$h <- scenario_high$params$h
+
+Fmsy_low_sigma <- calc_reference_points(params_low_sigma_low)$Fmsy
+Fmsy_high_sigma <- calc_reference_points(params_low_sigma_high)$Fmsy
+
+F_series_alt <- ifelse(block_id_low %% 2 == 1, Fmsy_high_sigma, Fmsy_low_sigma)
+
+log_rps_list_fmsy <- vector("list", n_sims_alt_low)
+
+for (i in 1:n_sims_alt_low) {
+  sim_alt_fmsy <- run_simulation_variable_h(
+    params_low_sigma,
+    h_series = h_series_low,
+    F_series = F_series_alt,
+    seed = 6000 + i
+  )
+
+  rps_fmsy <- sim_alt_fmsy$Recruitment[-1] / pmax(sim_alt_fmsy$SSB[-length(sim_alt_fmsy$SSB)], 1e-12)
+  log_rps_list_fmsy[[i]] <- data.frame(
+    Year = 2:n_years_alt_low,
+    Sim = i,
+    Log_R_SSB = log(rps_fmsy)
+  )
+}
+
+log_rps_fmsy_df <- do.call(rbind, log_rps_list_fmsy)
+median_log_rps_fmsy <- aggregate(Log_R_SSB ~ Year, data = log_rps_fmsy_df, FUN = median)
+
+p_alt_fmsy <- ggplot(log_rps_fmsy_df, aes(x = Year, y = Log_R_SSB, group = Sim)) +
+  geom_line(alpha = 0.2, size = 0.4, color = "steelblue") +
+  geom_line(
+    data = median_log_rps_fmsy,
+    aes(x = Year, y = Log_R_SSB),
+    inherit.aes = FALSE,
+    color = "black",
+    size = 1.1
+  ) +
+  labs(
+    x = "Year",
+    y = "log(Recruitment / SSB)",
+    title = "Alternating steepness, regime-specific Fmsy (sigma_R = 0.1)"
+  ) +
+  ggthemes::theme_few()
+
+p_alt_fmsy
+```
+
+Even with a known alternation in steepness, detecting a productivity shift in practice can be difficult. Recruitment variability, observation error in SSB, and the lagged relationship between SSB and recruitment can mask regime changes, especially over short time windows. This makes it challenging to distinguish a true shift in productivity from stochastic swings, and underscores the value of trigger rules that rely on sustained signals rather than single-year anomalies.
+
+# Discussion
+
+This comparison of low ($h = 0.6$) and high ($h = 0.9$) steepness scenarios demonstrates the critical influence of stock-recruitment steepness on fishery management. The main evidence comes from the reference points in @tbl-refpoints and the tradeoff patterns in @fig-sr-comparison, @fig-yield-comparison, and @fig-single-sim.
+This simulation is a simplified, pollock-like evaluation of SPR-based control rules, grounded in the Tier 3 framework described in the BSAI FMP [@NPFMC_FMP_2024]. In this model, the proxy $F_{MSY}$ is $F_{40\%}$, with a sloping rule that holds $F_{40\%}$ above 0.4 $B_0$ and linearly ramps to zero at 0.05 $B_0$. That structure aligns with SPR proxy guidance and the literature on SPR-based reference points [@NPFMC_FMP_2024; @Szuwalski_Punt_2025], while remaining intentionally stylized to match the scenarios tested here.
+
+The two steepness scenarios ($h = 0.6$ and $h = 0.9$) serve as a tractable proxy for productivity shifts discussed in climate and recruitment literature [@Spencer_etal_2019; @Punt_etal_2024; @Szuwalski_etal_2023]. We do not explicitly model environmental covariates or the ACLIM framework, but those references motivate the sensitivity analysis and the interpretation of performance differences across productivity regimes [@Hollowed_etal_2020].
+
+Finally, the catch-capped HCR variant (1.45 Mt) is a stylized analogue to ecosystem-cap effects that can dampen catch variability and conserve biomass during high abundance [@Holsman_etal_2020; @Ianelli_etal_2011]. While the cap value here is illustrative and not a direct re-creation of the 2 Mt cap, the direction and intent are consistent with the cited findings, making the comparison appropriate for the simplified model context.
+
+## Management Triggers and Objectives
+
+This analysis can be extended to explicitly test management objectives and triggers. Objectives define the desired outcomes and can be evaluated directly with the performance metrics already computed here (mean catch, catch variability, and risk of low biomass). Triggers then specify when the baseline capped HCR should tighten or relax specific elements of the rule (e.g., a lower F target, a smaller cap, or a steeper ramp).
+
+Examples of objectives that map cleanly onto the current outputs include:
+
+- Maintain low risk: keep $P(SSB < B_{MSY})$ below a chosen threshold at terminal years (see @tbl-mc-stats and @tbl-f-sensitivity).
+- Maintain catch stability: limit catch CV over the last 10 years (see @fig-catch-variability).
+- Maintain yield: keep mean catch above a target while satisfying the risk and stability bounds.
+
+Illustrative triggers that could be implemented within the capped HCR framework include:
+
+- **Biomass trigger**: if a 3-year moving average of $SSB/B_{MSY}$ falls below 1.0, reduce $F_{40\%}$ by a fixed fraction for the next 5 years.
+- **Trend trigger**: if SSB declines for 4 of 5 consecutive years, lower the cap and reduce the ramp slope until SSB recovers above the threshold.
+- **Catch variability trigger**: if catch CV exceeds a policy limit, temporarily tighten the cap or reduce the $F_{40\%}$ target.
+- **Recruitment anomaly trigger**: if recruitment falls below a historical percentile for multiple years, tighten the ramp parameters while maintaining the cap.
+- **Prolonged low recruitment trigger**: if recruitment is below its long-term mean for 5 consecutive years, reduce the $F_{40\%}$ target and lower the cap until recruitment rebounds.
+
+These triggers can be evaluated by their false-alarm rate, time-to-recovery, and tradeoffs against yield, allowing the Council to align management actions with explicit objectives rather than relying on implicit assumptions about productivity.
+
+**Illustrative trigger table (capped HCR adjustments):**
+
+| Trigger | Metric | Threshold | Capped HCR adjustment |
+|---|---|---|---|
+| Biomass safeguard | 3-year mean $SSB/B_{MSY}$ | < 1.0 | Reduce $F_{40\%}$ target by 20% for 5 years |
+| Persistent decline | SSB trend | Declines in 4 of 5 years | Lower cap by 15% and steepen the ramp |
+| Catch instability | Catch CV (last 10 years) | > 0.30 | Temporarily tighten cap by 10% |
+| Recruitment anomaly | Recruitment percentile | < 20th percentile for 3 of 5 years | Reduce $F_{40\%}$ by 15% and tighten ramp |
+| Prolonged low recruitment | Recruitment vs mean | Below mean for 5 consecutive years | Reduce $F_{40\%}$ by 10% and lower cap by 10% |
+
+
+## Reference Points
+
+| Metric | h = 0.6 | h = 0.9 |
+|--------|---------|---------|
+| $F_{MSY}$ | `r round(ref_low$Fmsy, 3)` | `r round(ref_high$Fmsy, 3)` |
+| $B_{MSY}$ | `r round(ref_low$Bmsy/1e9, 2)` Mt | `r round(ref_high$Bmsy/1e9, 2)` Mt |
+| MSY | `r round(ref_low$MSY/1e9, 2)` Mt | `r round(ref_high$MSY/1e9, 2)` Mt |
+| $B_{MSY}/SSB_0$ | `r round(ref_low$Bmsy_B0_ratio, 2)` | `r round(ref_high$Bmsy_B0_ratio, 2)` |
+
+## Key Findings
+
+1. **Higher steepness dramatically increases sustainable fishing mortality**: $F_{MSY}$ increases from `r round(ref_low$Fmsy, 2)` to `r round(ref_high$Fmsy, 2)` (a `r round((ref_high$Fmsy/ref_low$Fmsy - 1) * 100, 0)`% increase).
+
+2. **MSY is `r round((ref_high$MSY/ref_low$MSY - 1) * 100, 0)`% higher** with high steepness (`r round(ref_high$MSY/1e9, 2)` vs `r round(ref_low$MSY/1e9, 2)` million tonnes).
+
+3. **$B_{MSY}$ is lower** with high steepness because recruitment remains high even at reduced biomass levels.
+
+4. **Management implications**: Uncertainty in steepness translates directly to uncertainty in sustainable harvest levels. A stock managed as if $h = 0.9$ when true $h = 0.6$ would be at high risk of overfishing.
+
+5. **F40% sloping HCR vs constant F**: The proxy Fmsy (F40%) with the sloping control rule yields a different catch/SSB tradeoff than the constant-F multipliers, and its mean realized F/Fmsy and outcomes shift between $h = 0.6$ and $h = 0.9$ (see @fig-f-sensitivity and @fig-f-sensitivity-points).
+
+
+# References 
+
+::: {#refs}
+:::
+
+# Appendix: R Session Info {.unnumbered}
+
+Session information is reported below to document the computational environment used to generate the figures and tables.
+
+```{r session-info}
+sessionInfo()
+```

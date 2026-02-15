@@ -1,0 +1,28 @@
+# R specific
+.Rhistory
+.Rdata
+.RData
+.Ruserdata
+.Rproj.user/
+
+# Quarto outputs
+_freeze/
+_site/
+*.html
+!pollock_simulation.html
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Local assistant config
+.claude/settings.local.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*~

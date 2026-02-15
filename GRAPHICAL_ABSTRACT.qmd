@@ -1,0 +1,109 @@
+---
+title: "Graphical Abstract"
+format:
+  html:
+    embed-resources: true
+    toc: false
+    number-sections: false
+  pdf:
+    documentclass: article
+    number-sections: false
+    toc: false
+execute:
+  warning: false
+  message: false
+---
+
+```{r setup}
+#| include: false
+SOURCED_ONLY <- TRUE
+source("R/pollock_simulation.R")
+library(ggplot2)
+library(ggthemes)
+```
+
+# Risk‑calibrated HCR under productivity shifts
+
+**Question:** Can a single transparent HCR remain robust when steepness changes?
+
+**Approach:** Two steepness regimes (h = 0.6, 0.9) in a pollock‑like model; calibrate one Ftarget so mean risk P(SSB < 0.2 B0) = 0.05 across scenarios.
+
+```{r ga-panel, fig.width=7.5, fig.height=5}
+scenario_low <- create_scenario(h = 0.6, "Low, h=0.6")
+scenario_high <- create_scenario(h = 0.9, "High, h=0.9")
+scenarios <- list(scenario_low, scenario_high)
+
+ref_low <- scenario_low$ref_points
+ref_high <- scenario_high$ref_points
+
+# Yield curves
+p_yield <- plot_yield_comparison(scenarios, colors = c("blue", "red")) +
+  labs(title = "Productivity shifts move Fmsy and yield")
+
+# Risk calibration (small table rendered as text)
+target_risk <- 0.05
+b0_frac <- 0.2
+n_sims_risk <- 200
+seed_low <- 2200
+seed_high <- 3200
+
+calc_terminal_b0_risk <- function(scenario, F_target, B0, n_sims, seed_base, b0_frac) {
+  params <- scenario$params
+  n_years <- params$n_years
+  below <- logical(n_sims)
+
+  for (i in 1:n_sims) {
+    sim <- run_simulation_hcr(
+      params,
+      F_target = F_target,
+      B0 = B0,
+      catch_cap = NULL,
+      seed = seed_base + i
+    )
+    below[i] <- sim$SSB[n_years] < (b0_frac * B0)
+  }
+
+  mean(below)
+}
+
+combined_b0_risk <- function(F_target) {
+  risk_low <- calc_terminal_b0_risk(
+    scenario_low,
+    F_target,
+    ref_low$SSB0,
+    n_sims_risk,
+    seed_low,
+    b0_frac
+  )
+  risk_high <- calc_terminal_b0_risk(
+    scenario_high,
+    F_target,
+    ref_high$SSB0,
+    n_sims_risk,
+    seed_high,
+    b0_frac
+  )
+
+  mean(c(risk_low, risk_high))
+}
+
+F_grid <- seq(0.05, 1.0, by = 0.05)
+risk_grid <- sapply(F_grid, combined_b0_risk)
+
+if (target_risk <= min(risk_grid)) {
+  Ftarget <- F_grid[which.min(risk_grid)]
+} else if (target_risk >= max(risk_grid)) {
+  Ftarget <- F_grid[which.max(risk_grid)]
+} else {
+  ordered <- data.frame(F_grid, risk_grid)[order(risk_grid), ]
+  Ftarget <- approx(ordered$risk_grid, ordered$F_grid, xout = target_risk)$y
+}
+
+risk_label <- paste0("Calibrated Ftarget = ", round(Ftarget, 3))
+
+p_yield
+```
+
+**Result:** A single risk‑calibrated Ftarget provides consistent biomass protection across steepness regimes while preserving catch potential in high productivity states.
+
+**Implication:** A transparent, SPR‑based HCR can be made robust without time‑varying covariates.
