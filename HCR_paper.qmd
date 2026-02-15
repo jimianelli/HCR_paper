@@ -55,7 +55,7 @@ The HCR applies F40% above 0.4 B0, ramps linearly to zero at 0.05 B0, and sets F
 
 ## Management objectives and metrics
 
-```{r objectives-table}
+```{r}
 #| label: tbl-objectives
 #| tbl-cap: "Management objectives and performance metrics."
 objectives <- data.frame(
@@ -98,14 +98,14 @@ scenario_high <- create_scenario(h = 0.9, "High, h=0.9")
 scenarios <- list(scenario_low, scenario_high)
 ```
 
-```{r ref-point-comparison}
+```{r}
 #| label: tbl-refpoints
 #| tbl-cap: "Reference point comparison between low and high steepness scenarios"
 comparison_df <- compare_reference_points(scenarios)
 knitr::kable(comparison_df, align = c("l", "c", "c", "c", "c", "c", "c", "c"))
 ```
 
-```{r yield-comparison}
+```{r}
 #| label: fig-yield-comparison
 #| fig-cap: "Equilibrium yield vs. fishing mortality for both steepness scenarios. Vertical dashed lines indicate Fmsy."
 #| fig-height: 5
@@ -115,7 +115,7 @@ plot_yield_comparison(scenarios, colors = c("blue", "red"))
 
 ## HCR and risk‑calibrated Ftarget
 
-```{r hcr-f40-table}
+```{r}
 #| label: tbl-f40
 #| tbl-cap: "F40% (SPR) values by steepness scenario."
 ref_low <- scenario_low$ref_points
@@ -133,7 +133,7 @@ f40_table <- data.frame(
 knitr::kable(f40_table)
 ```
 
-```{r ftarget-calibration}
+```{r}
 #| label: tbl-ftarget
 #| tbl-cap: "Risk‑calibrated Ftarget targeting P(SSB < 0.2 B0) = 0.05 across both scenarios."
 
@@ -230,7 +230,7 @@ knitr::kable(ftarget_table)
 
 ## Monte Carlo performance
 
-```{r monte-carlo}
+```{r}
 #| label: fig-monte-carlo
 #| fig-cap: "Ensemble of 100 simulations for each scenario showing SSB variability. Thin lines are individual simulations, thick solid lines are medians, and dashed lines indicate Bmsy."
 #| fig-height: 5

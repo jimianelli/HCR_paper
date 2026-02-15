@@ -12,7 +12,11 @@ Concise applied‑fisheries manuscript built from the HCR_eval simulation, cente
 ## Render
 ```sh
 quarto render HCR_paper.qmd
+quarto render GRAPHICAL_ABSTRACT.qmd
 ```
+
+## GitHub Pages
+- https://jimianelli.github.io/HCR_paper/
 
 ## Notes
 - The paper uses a single, risk‑calibrated Ftarget applied across steepness scenarios.
